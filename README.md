@@ -28,13 +28,22 @@ The backend stores application data and code embeddings in the same PostgreSQL d
 
 ### 1. Start PostgreSQL
 
-From the repository root:
+Use one PostgreSQL instance on host port `5432`. If you use the supplied Docker Compose service, start it from the repository root:
 
 ```powershell
 docker compose up -d postgres
 ```
 
-The Compose service uses PostgreSQL 18 with pgvector, stores data in the `repofy_pg_data` named volume, and publishes container port `5432` as host port `5433`. The host port avoids conflicts with a locally installed PostgreSQL server.
+The Compose service uses PostgreSQL 18 with pgvector, stores data in the `repofy_pg_data` named volume, and publishes container port `5432` on host port `5432`. Do not start it while another PostgreSQL service is listening on host port `5432`. If you keep an existing local PostgreSQL server on that port instead, ensure its `repofy` database exists and provision pgvector as described below.
+
+For an existing local PostgreSQL server, run these commands from the repository root using a PostgreSQL administrator account. The first command installs the required extensions and creates the vector table; the second grants the configured application role access to that table. Replace `repofy_user` if `DB_USERNAME` in `.env` is different:
+
+```powershell
+psql -h localhost -p 5432 -U postgres -d repofy -W -f .\docker\postgress\init.extensions.sql
+psql -h localhost -p 5432 -U postgres -d repofy -W -c "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.vector_store TO repofy_user;"
+```
+
+`CREATE EXTENSION vector` requires a PostgreSQL administrator. The application role must not be made a superuser. The setup script is safe to re-run: it uses `IF NOT EXISTS` for extensions and the table.
 
 ### 2. Configure the environment
 
@@ -53,10 +62,10 @@ Generate two independent secure values:
 
 Set the first output as `TOKEN_ENCRYPTOR_PASSWORD` and the second as `TOKEN_ENCRYPTOR_SALT` in `.env`. The salt must be exactly 16 hexadecimal characters. Keep both values safe and stable: changing them prevents the app from decrypting GitHub tokens already stored in the database.
 
-The example file uses placeholder credentials and has a database URL for port `5432`. For the Compose setup above, set `DB_URL` to:
+The example file uses placeholder credentials and has a database URL for port `5432`. Set `DB_URL` to:
 
 ```dotenv
-DB_URL=jdbc:postgresql://localhost:5433/repofy
+DB_URL=jdbc:postgresql://localhost:5432/repofy
 ```
 
 Keep `.env` private; it is ignored by Git. Never put real credentials in `.env.example`.
@@ -79,7 +88,7 @@ Values shown as defaults are the application defaults unless noted. The `.env.ex
 |---|---:|---|---|
 | `TOKEN_ENCRYPTOR_PASSWORD` | Yes | Encrypts stored GitHub access tokens. Generate a secure value. | None |
 | `TOKEN_ENCRYPTOR_SALT` | Yes | Salt for token encryption; exactly 16 hex characters. | None |
-| `DB_URL` | No | JDBC URL for the PostgreSQL database. Use port `5433` with the supplied Compose file. | `jdbc:postgresql://localhost:5432/repofy` |
+| `DB_URL` | No | JDBC URL for the PostgreSQL database. | `jdbc:postgresql://localhost:5432/repofy` |
 | `DB_USERNAME` | No | PostgreSQL user; Compose and backend use this value. | Compose: `repofy_user`; example file: `project_user` |
 | `DB_PASSWORD` | No | PostgreSQL password; Compose and backend use this value. | Compose: `repofy_password`; example file: `project_password` |
 | `GITHUB_CLIENT_ID` | Needed for sign-in | GitHub OAuth App client ID. | Placeholder |
@@ -128,5 +137,5 @@ It should return `/oauth2/authorization/github`.
 - **Invalid encryption salt:** provide exactly 16 hexadecimal characters for `TOKEN_ENCRYPTOR_SALT`.
 - **GitHub sign-in fails:** replace both OAuth placeholders and verify the callback URL is exactly `http://localhost:8080/login/oauth2/code/github`.
 - **Indexing or chat fails:** set a valid `OPENAI_API_KEY` and confirm the configured models are available to your account.
-- **Database connection fails:** ensure `docker compose up -d postgres` is healthy and `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` match `.env`. The supplied Compose setup uses host port `5433`.
+- **Database connection fails:** ensure PostgreSQL is healthy on host port `5432` and `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` match `.env`. The Compose service publishes container port `5432` on host port `5432`; stop or reconfigure any other service already using that host port before starting it.
 - **IDE starts without configuration:** run `.\run-backend.ps1` from the integrated terminal, or add the root `.env` values to the IDE run configuration.

@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-repofy_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-repofy_password}
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - repofy_pg_data:/var/lib/postgresql
       - ./docker/postgress/init.extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
