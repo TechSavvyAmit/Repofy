@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: repofy-postgres
+    environment:
+      POSTGRES_DB: repofy
+      POSTGRES_USER: ${DB_USERNAME:-repofy_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-repofy_password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - repofy_pg_data:/var/lib/postgresql
+      - ./docker/postgress/init.extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d repofy"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  repofy_pg_data:
